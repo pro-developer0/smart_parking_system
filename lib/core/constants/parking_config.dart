@@ -31,4 +31,3 @@ abstract class ParkingConfig {
   /// How long before a booking ends to fire the "ending soon" notification.
   static const int notificationLeadMinutes = 1;
 }
-
