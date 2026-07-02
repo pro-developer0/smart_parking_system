@@ -36,7 +36,7 @@ class MainScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Keeps the "booking ends soon" notification in sync while signed in.
-    ref.watch(bookingReminderProvider);
+    ref.watch(bookingNotificationProvider);
     // Prompts for notification permission on first reaching the app's
     // signed-in area, if it hasn't been granted yet.
     ref.watch(notificationPermissionPromptProvider);
@@ -102,41 +102,53 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? AppColors.primary : context.semantic.muted;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: EdgeInsets.symmetric(horizontal: selected ? 16 : 0),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.12) : null,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(selected ? selectedIcon : icon, color: color, size: 22),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: selected
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    )
-                  : const SizedBox(width: 0),
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: selected ? 16 : 12,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withValues(alpha: 0.12) : null,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          // FittedBox guarantees this never overflows its slot even on the
+          // narrowest devices or with larger system font scales — it
+          // shrinks the icon+label together instead of clipping/erroring.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(selected ? selectedIcon : icon, color: color, size: 22),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: selected
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: 0),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -118,7 +118,7 @@ final bookingJanitorProvider = Provider<void>((ref) {
 /// notification in sync with the user's live booking. Kept alive by being
 /// watched in [MainScaffold]. Only reacts when the booking identity or the
 /// notifications toggle actually changes, not on every ticker tick.
-final bookingReminderProvider = Provider<void>((ref) {
+final bookingNotificationProvider = Provider<void>((ref) {
   String? scheduledForBookingId;
 
   void sync() {
@@ -127,7 +127,7 @@ final bookingReminderProvider = Provider<void>((ref) {
 
     if (!enabled || booking == null) {
       if (scheduledForBookingId != null) {
-        NotificationService.instance.cancelBookingReminder();
+        NotificationService.instance.cancelBookingNotification();
         scheduledForBookingId = null;
       }
       return;
@@ -135,16 +135,17 @@ final bookingReminderProvider = Provider<void>((ref) {
 
     if (scheduledForBookingId == booking.id) return;
 
-    final remindAt = booking.endTime
-        .subtract(const Duration(minutes: ParkingConfig.reminderLeadMinutes));
-    if (remindAt.isAfter(DateTime.now())) {
-      NotificationService.instance.scheduleBookingReminder(
+    final notifyAt = booking.endTime.subtract(
+      const Duration(minutes: ParkingConfig.notificationLeadMinutes),
+    );
+    if (notifyAt.isAfter(DateTime.now())) {
+      NotificationService.instance.scheduleBookingNotification(
         slotId: booking.slotId,
-        fireAt: remindAt,
+        fireAt: notifyAt,
       );
       scheduledForBookingId = booking.id;
     } else if (scheduledForBookingId != null) {
-      NotificationService.instance.cancelBookingReminder();
+      NotificationService.instance.cancelBookingNotification();
       scheduledForBookingId = null;
     }
   }

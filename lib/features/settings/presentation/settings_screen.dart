@@ -51,8 +51,8 @@ class SettingsScreen extends ConsumerWidget {
           _SectionLabel('Notifications'),
           _Card(
             child: SwitchListTile(
-              title: const Text('Booking reminders'),
-              subtitle: Text('Alert me before my time runs out',
+              title: const Text('Notifications'),
+              subtitle: Text('Notify me 1 minute before my time runs out',
                   style: TextStyle(color: context.semantic.muted)),
               value: notifications,
               onChanged: (v) =>

@@ -56,7 +56,7 @@ final notificationsProvider =
     NotifierProvider<NotificationsController, bool>(NotificationsController.new);
 
 /// Prompts for OS notification permission once per app session (if the
-/// reminders setting is on). Watched from [MainScaffold] so it fires as
+/// notifications setting is on). Watched from [MainScaffold] so it fires as
 /// soon as the user reaches the signed-in part of the app. Harmless to
 /// re-run — the OS only shows its own prompt once until the user responds.
 final notificationPermissionPromptProvider = Provider<void>((ref) {

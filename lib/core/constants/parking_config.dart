@@ -20,7 +20,7 @@ abstract class ParkingConfig {
   ];
 
   /// Booking duration options offered to the user (in minutes).
-  static const List<int> durationOptionsMinutes = [1, 60, 120, 180, 300];
+  static const List<int> durationOptionsMinutes = [2, 60, 120, 180, 300];
 
   /// Extension options offered while a booking is active (in minutes).
   static const List<int> extensionOptionsMinutes = [15, 30, 60];
@@ -28,6 +28,6 @@ abstract class ParkingConfig {
   /// Max total time a single booking may span, to keep turnover healthy.
   static const int maxBookingMinutes = 480; // 8 hours
 
-  /// How long before a booking ends to fire the reminder notification.
-  static const int reminderLeadMinutes = 10;
+  /// How long before a booking ends to fire the "ending soon" notification.
+  static const int notificationLeadMinutes = 1;
 }
