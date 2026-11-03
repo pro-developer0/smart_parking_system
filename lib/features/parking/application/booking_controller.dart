@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_providers.dart';
@@ -21,6 +22,26 @@ class BookingController extends AsyncNotifier<void> {
     if (uid == null || profile == null) {
       state = AsyncError(
         BookingException('You need to be signed in.'),
+        StackTrace.current,
+      );
+      return false;
+    }
+    if (profile.suspended) {
+      state = AsyncError(
+        BookingException(
+          'Your account is suspended from booking. '
+          'Please contact the parking office.',
+        ),
+        StackTrace.current,
+      );
+      return false;
+    }
+    if (!profile.hasBookingDetails) {
+      state = AsyncError(
+        BookingException(
+          'Please add your phone number and vehicle number in your '
+          'profile before booking.',
+        ),
         StackTrace.current,
       );
       return false;
@@ -68,5 +89,12 @@ final bookingControllerProvider =
 
 String mapBookingError(Object error) {
   if (error is BookingException) return error.message;
+  if (error is FirebaseException && error.code == 'permission-denied') {
+    return 'You are not allowed to make this booking. '
+        'Your account may be suspended.';
+  }
+  if (error is FirebaseException && error.code == 'aborted') {
+    return 'Lots of people are booking right now. Please try again.';
+  }
   return 'Something went wrong. Please try again.';
 }

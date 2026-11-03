@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../application/auth_controller.dart';
@@ -22,6 +23,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _vehicle = TextEditingController();
+  final _phone = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
 
@@ -30,6 +32,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _name.dispose();
     _email.dispose();
     _vehicle.dispose();
+    _phone.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -41,7 +44,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           name: _name.text,
           email: _email.text,
           password: _password.text,
-          vehicleNumber: _vehicle.text,
+          vehicleNumber: _vehicle.text.trim().toUpperCase(),
+          phone: _phone.text,
         );
     if (!ok && mounted) {
       AppSnackbar.error(
@@ -80,7 +84,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     AppTextField(
                       controller: _name,
                       label: 'Full name',
-                      hint: 'Ada Lovelace',
+                      hint: 'Name',
                       icon: Icons.person_outline_rounded,
                       textCapitalization: TextCapitalization.words,
                       validator: (v) => (v == null || v.trim().length < 2)
@@ -101,10 +105,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     const SizedBox(height: 18),
                     AppTextField(
                       controller: _vehicle,
-                      label: 'Vehicle number (optional)',
+                      label: 'Vehicle number',
                       hint: 'ABC-123',
                       icon: Icons.directions_car_outlined,
                       textCapitalization: TextCapitalization.characters,
+                      validator: Validators.vehicleNumber,
+                    ),
+                    const SizedBox(height: 18),
+                    AppTextField(
+                      controller: _phone,
+                      label: 'Phone number',
+                      hint: '+92 300 0000000',
+                      icon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      validator: Validators.phone,
                     ),
                     const SizedBox(height: 18),
                     AppTextField(

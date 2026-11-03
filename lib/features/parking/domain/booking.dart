@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/parking_config.dart';
+
 enum BookingStatus { active, completed, cancelled }
 
 /// A reservation of a slot for a time window, stored at `bookings/{id}`.
@@ -14,6 +16,7 @@ class Booking {
     required this.endTime,
     required this.status,
     required this.createdAt,
+    this.bookedMinutes,
   });
 
   final String id;
@@ -26,7 +29,22 @@ class Booking {
   final BookingStatus status;
   final DateTime createdAt;
 
+  /// Duration originally chosen when booking (before any extensions).
+  /// Null for bookings made before this field existed.
+  final int? bookedMinutes;
+
   Duration get totalDuration => endTime.difference(startTime);
+
+  /// The originally booked length. Older bookings without the field fall
+  /// back to their current length.
+  Duration get bookedDuration =>
+      bookedMinutes != null ? Duration(minutes: bookedMinutes!) : totalDuration;
+
+  /// How much more time this booking may still be extended by.
+  Duration get extensionLeft {
+    final left = ParkingConfig.maxTotalDuration(bookedDuration) - totalDuration;
+    return left.isNegative ? Duration.zero : left;
+  }
 
   Duration remaining(DateTime now) {
     final diff = endTime.difference(now);
@@ -71,6 +89,7 @@ class Booking {
       ),
       createdAt:
           (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      bookedMinutes: (d['bookedMinutes'] as num?)?.toInt(),
     );
   }
 

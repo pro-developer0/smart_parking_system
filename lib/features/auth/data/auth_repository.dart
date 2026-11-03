@@ -56,6 +56,8 @@ class AuthRepository {
     );
     await _users.doc(uid).set({
       ...user.toMap(),
+      'role': 'user',
+      'suspended': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

@@ -26,7 +26,7 @@ class BookingHistoryScreen extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(20),
             itemCount: bookings.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (_, i) => _HistoryTile(booking: bookings[i], now: now),
           );
         },
@@ -67,11 +67,7 @@ class _HistoryTile extends StatelessWidget {
     final meta = _meta;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.semantic.border),
-      ),
+      decoration: context.cardDecoration(16),
       child: Row(
         children: [
           Container(
@@ -96,7 +92,7 @@ class _HistoryTile extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(
-                  '${Formatters.durationLabel(booking.totalDuration)} · ends ${Formatters.time(booking.endTime)}',
+                  '${Formatters.durationLabel(booking.totalDuration)} · ends ${Formatters.smartTime(booking.endTime)}',
                   style: TextStyle(
                       fontSize: 12.5, color: context.semantic.muted),
                 ),

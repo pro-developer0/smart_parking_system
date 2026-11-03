@@ -169,7 +169,7 @@ class _Logo extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         const Text(
-          'ParkEase',
+          'Smart Parking System',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
         ),
       ],

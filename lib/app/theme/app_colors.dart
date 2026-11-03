@@ -13,6 +13,12 @@ abstract class AppColors {
   static const Color occupied = Color(0xFFEF4444); // red
   static const Color mine = Color(0xFF4F46E5); // indigo (same as brand)
 
+  // Slot conditions set by the admin
+  static const Color construction = Color(0xFFF59E0B); // amber
+  static const Color maintenance = Color(0xFF0EA5E9); // sky blue
+  static const Color reserved = Color(0xFFEC4899); // pink
+  static const Color closed = Color(0xFF64748B); // slate grey
+
   // Light neutrals
   static const Color lightBg = Color(0xFFF6F7FB);
   static const Color lightSurface = Color(0xFFFFFFFF);

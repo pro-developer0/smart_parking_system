@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/admin/presentation/admin_screen.dart';
 import '../../features/auth/application/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
@@ -10,6 +11,7 @@ import '../../features/parking/presentation/booking_history_screen.dart';
 import '../../features/parking/presentation/my_booking_screen.dart';
 import '../../features/parking/presentation/parking_home_screen.dart';
 import '../../features/parking/presentation/slot_booking_screen.dart';
+import '../../features/profile/presentation/contact_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -26,24 +28,21 @@ final _splashMinDurationProvider = FutureProvider<void>(
 /// its redirect whenever auth state changes.
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(Ref ref) {
-    _authSub = ref.listen(
-      authStateProvider,
-      (_, __) => notifyListeners(),
-      fireImmediately: true,
-    );
-    _splashSub = ref.listen(
-      _splashMinDurationProvider,
-      (_, __) => notifyListeners(),
-      fireImmediately: true,
-    );
+    // Re-check the route when auth changes, the splash time is up, or the
+    // profile loads (so we know if this account is an admin).
+    _subs = [
+      ref.listen(authStateProvider, (_, _) => notifyListeners()),
+      ref.listen(_splashMinDurationProvider, (_, _) => notifyListeners()),
+      ref.listen(userProfileProvider, (_, _) => notifyListeners()),
+    ];
   }
-  late final ProviderSubscription _authSub;
-  late final ProviderSubscription _splashSub;
+  late final List<ProviderSubscription> _subs;
 
   @override
   void dispose() {
-    _authSub.close();
-    _splashSub.close();
+    for (final sub in _subs) {
+      sub.close();
+    }
     super.dispose();
   }
 }
@@ -63,41 +62,52 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // display time hasn't elapsed yet, stay on splash.
       if (authState.isLoading || !splashElapsed) return null;
 
-      final loggedIn = authState.value != null;
+      final user = authState.value;
       final loc = state.matchedLocation;
       final onAuthScreen = loc == Routes.login || loc == Routes.signup;
       final onSplash = loc == Routes.splash;
+      final onAdmin = loc.startsWith(Routes.admin);
 
-      if (!loggedIn) {
+      if (user == null) {
         return onAuthScreen ? null : Routes.login;
       }
+
+      // Wait until this user's profile has loaded, so we know their role.
+      // (While it loads we stay where we are, e.g. on splash or login.)
+      final profileAsync = ref.read(userProfileProvider);
+      final profile = profileAsync.value;
+      final profileReady = !profileAsync.isLoading &&
+          (profile == null || profile.uid == user.uid);
+      if (!profileReady) return null;
+
+      final isAdmin = profile?.isAdmin ?? false;
+
+      if (isAdmin) {
+        // Admins use the admin panel (+ Settings for theme).
+        if (onAdmin || loc == Routes.settings) return null;
+        return Routes.admin;
+      }
+
+      // Normal users can never open the admin panel.
+      if (onAdmin) return Routes.home;
       // Logged in but sitting on splash/auth → go home.
       if (onSplash || onAuthScreen) return Routes.home;
       return null;
     },
     routes: [
-      GoRoute(
-        path: Routes.splash,
-        builder: (_, __) => const SplashScreen(),
-      ),
-      GoRoute(
-        path: Routes.login,
-        builder: (_, __) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: Routes.signup,
-        builder: (_, __) => const SignupScreen(),
-      ),
+      GoRoute(path: Routes.splash, builder: (_, _) => const SplashScreen()),
+      GoRoute(path: Routes.login, builder: (_, _) => const LoginScreen()),
+      GoRoute(path: Routes.signup, builder: (_, _) => const SignupScreen()),
       // Home / History / Profile live behind a persistent bottom nav bar,
       // each keeping its own navigation stack when the user switches tabs.
       StatefulShellRoute.indexedStack(
-        builder: (_, __, shell) => MainScaffold(navigationShell: shell),
+        builder: (_, _, shell) => MainScaffold(navigationShell: shell),
         branches: [
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: Routes.home,
-                builder: (_, __) => const ParkingHomeScreen(),
+                builder: (_, _) => const ParkingHomeScreen(),
                 routes: [
                   GoRoute(
                     path: Routes.bookingPath,
@@ -112,35 +122,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: Routes.history,
-                builder: (_, __) => const BookingHistoryScreen(),
-              ),
+              GoRoute(path: Routes.history, builder: (_, _) => const BookingHistoryScreen()),
             ],
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: Routes.profile,
-                builder: (_, __) => const ProfileScreen(),
-              ),
+              GoRoute(path: Routes.profile, builder: (_, _) => const ProfileScreen()),
             ],
           ),
         ],
       ),
       // Pushed full-screen above the nav bar rather than living in a tab.
-      GoRoute(
-        path: Routes.myBooking,
-        builder: (_, __) => const MyBookingScreen(),
-      ),
-      GoRoute(
-        path: Routes.editProfile,
-        builder: (_, __) => const EditProfileScreen(),
-      ),
-      GoRoute(
-        path: Routes.settings,
-        builder: (_, __) => const SettingsScreen(),
-      ),
+      GoRoute(path: Routes.myBooking, builder: (_, _) => const MyBookingScreen()),
+      GoRoute(path: Routes.editProfile, builder: (_, _) => const EditProfileScreen()),
+      GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen()),
+      GoRoute(path: Routes.contact, builder: (_, _) => const ContactScreen()),
+      // Admin panel: only reachable by accounts with role "admin"
+      // (see the redirect above).
+      GoRoute(path: Routes.admin, builder: (_, _) => const AdminScreen()),
     ],
     errorBuilder: (_, state) => Scaffold(
       body: Center(child: Text('Route not found: ${state.uri}')),

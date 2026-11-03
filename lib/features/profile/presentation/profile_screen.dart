@@ -5,31 +5,22 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_providers.dart';
+import 'widgets/profile_photo_picker.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('You can sign back in anytime.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              style:
-                  FilledButton.styleFrom(backgroundColor: AppColors.occupied),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Log out')),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Log out?',
+      message: 'You can sign back in anytime.',
+      action: 'Log out',
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     await ref.read(authControllerProvider.notifier).signOut();
     // Router redirect returns us to /login automatically.
   }
@@ -54,18 +45,14 @@ class ProfileScreen extends ConsumerWidget {
           Center(
             child: Column(
               children: [
-                CircleAvatar(
+                EditableAvatar(
+                  uid: profile?.uid,
+                  initials: profile?.initials ?? '?',
                   radius: 44,
-                  backgroundColor: AppColors.primary,
-                  child: Text(
-                    profile?.initials ?? '?',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800),
-                  ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 6),
+                const ChangePhotoHint(),
+                const SizedBox(height: 10),
                 Text(profile?.name ?? '—',
                     style: context.text.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800)),
@@ -101,6 +88,11 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => context.go(Routes.history),
           ),
           _MenuTile(
+            icon: Icons.mail_outline_rounded,
+            label: 'Contact us',
+            onTap: () => context.push(Routes.contact),
+          ),
+          _MenuTile(
             icon: Icons.settings_outlined,
             label: 'Settings',
             onTap: () => context.push(Routes.settings),
@@ -126,11 +118,7 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.semantic.border),
-      ),
+      decoration: context.cardDecoration(),
       child: Column(children: children),
     );
   }

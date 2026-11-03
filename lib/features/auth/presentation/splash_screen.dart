@@ -29,7 +29,7 @@ class SplashScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'ParkEase',
+              'Smart Parking System',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 28,

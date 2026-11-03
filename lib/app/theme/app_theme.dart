@@ -153,4 +153,11 @@ extension AppThemeX on BuildContext {
       Theme.of(this).extension<AppSemanticColors>()!;
   TextTheme get text => Theme.of(this).textTheme;
   ColorScheme get colors => Theme.of(this).colorScheme;
+
+  /// Standard rounded card: surface fill + thin border.
+  BoxDecoration cardDecoration([double radius = 18]) => BoxDecoration(
+        color: semantic.surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: semantic.border),
+      );
 }

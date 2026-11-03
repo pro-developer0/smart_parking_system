@@ -14,6 +14,16 @@ class SlotTile extends StatelessWidget {
         SlotStatus.available => AppColors.available,
         SlotStatus.occupied => AppColors.occupied,
         SlotStatus.mine => AppColors.mine,
+        // Blocked slots take the colour of the admin's condition
+        // (amber = construction, grey = closed, ...).
+        SlotStatus.blocked => view.condition?.condition.color ?? AppColors.closed,
+      };
+
+  IconData get _icon => switch (view.status) {
+        SlotStatus.available => Icons.local_parking_rounded,
+        SlotStatus.blocked =>
+          view.condition?.condition.icon ?? Icons.block_rounded,
+        _ => Icons.directions_car_rounded,
       };
 
   @override
@@ -44,9 +54,7 @@ class SlotTile extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      isAvailable
-                          ? Icons.local_parking_rounded
-                          : Icons.directions_car_rounded,
+                      _icon,
                       color: _color,
                       size: 22,
                     ),

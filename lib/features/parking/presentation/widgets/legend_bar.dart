@@ -15,6 +15,8 @@ class LegendBar extends StatelessWidget {
         _LegendDot(color: AppColors.available, label: 'Available'),
         _LegendDot(color: AppColors.occupied, label: 'Occupied'),
         _LegendDot(color: AppColors.mine, label: 'Your spot'),
+        _LegendDot(color: AppColors.construction, label: 'Construction'),
+        _LegendDot(color: AppColors.closed, label: 'Closed'),
       ],
     );
   }

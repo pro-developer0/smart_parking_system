@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../utils/formatters.dart';
+
 /// Thin wrapper around `flutter_local_notifications` for the single
 /// "your booking ends soon" notification. Only one live booking can exist
 /// per user at a time, so a fixed notification id is enough to identify it.
@@ -11,6 +13,7 @@ class NotificationService {
   static final NotificationService instance = NotificationService._();
 
   static const _notificationId = 9001;
+  static const _confirmationId = 9002;
   // A fresh channel id — Android locks in a channel's importance/sound the
   // first time it's created on a device, so reusing the old
   // 'booking_reminders' id here would silently keep whatever settings that
@@ -83,26 +86,33 @@ class NotificationService {
   Future<void> scheduleBookingNotification({
     required String slotId,
     required DateTime fireAt,
+    required int minutesLeft,
   }) async {
     if (!_initialized) await init();
     final when = tz.TZDateTime.from(fireAt.toUtc(), tz.UTC);
-    const details = NotificationDetails(
+    final body = 'Slot $slotId: your booking ends in '
+        '$minutesLeft minute${minutesLeft == 1 ? '' : 's'}. '
+        'Please return to your vehicle on time. If you are late, you will '
+        'be charged extra (double rate) for every minute you stay over.';
+    final details = NotificationDetails(
       android: AndroidNotificationDetails(
         _channelId,
         'Booking notifications',
         channelDescription: 'Notifies you shortly before your parking booking ends',
         importance: Importance.high,
         priority: Priority.high,
+        // Show the whole message when expanded, not just the first line.
+        styleInformation: BigTextStyleInformation(body),
       ),
-      iOS: DarwinNotificationDetails(),
-      macOS: DarwinNotificationDetails(),
+      iOS: const DarwinNotificationDetails(),
+      macOS: const DarwinNotificationDetails(),
     );
 
     try {
       await _plugin.zonedSchedule(
         _notificationId,
-        'Parking notification',
-        'Slot $slotId — your booking ends soon.',
+        'Your parking time is almost up',
+        body,
         when,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -113,8 +123,8 @@ class NotificationService {
       debugPrint('Exact notification scheduling failed ($e), using inexact.');
       await _plugin.zonedSchedule(
         _notificationId,
-        'Parking notification',
-        'Slot $slotId — your booking ends soon.',
+        'Your parking time is almost up',
+        body,
         when,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -125,4 +135,35 @@ class NotificationService {
   }
 
   Future<void> cancelBookingNotification() => _plugin.cancel(_notificationId);
+
+  /// Shown right away when the user books or schedules a slot, reminding
+  /// them to be on time and warning about the late charge.
+  Future<void> showBookingConfirmation({
+    required String slotId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    if (!_initialized) await init();
+    final body = 'Slot $slotId is booked from ${Formatters.time(start)} to '
+        '${Formatters.smartTime(end)}. Please arrive on time. If you are late, '
+        'you will be charged extra (double rate) for the time you are late.';
+    await _plugin.show(
+      _confirmationId,
+      'Booking confirmed',
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          'Booking notifications',
+          channelDescription:
+              'Notifies you shortly before your parking booking ends',
+          importance: Importance.high,
+          priority: Priority.high,
+          styleInformation: BigTextStyleInformation(body),
+        ),
+        iOS: const DarwinNotificationDetails(),
+        macOS: const DarwinNotificationDetails(),
+      ),
+    );
+  }
 }

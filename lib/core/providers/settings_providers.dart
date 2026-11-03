@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/parking_config.dart';
 import '../services/notification_service.dart';
 
 /// Provided at app startup via an override (see main.dart).
@@ -54,6 +55,25 @@ class NotificationsController extends Notifier<bool> {
 
 final notificationsProvider =
     NotifierProvider<NotificationsController, bool>(NotificationsController.new);
+
+/// How many minutes before a booking ends the user wants to be notified.
+class NotificationLeadController extends Notifier<int> {
+  static const _key = 'notification_lead_minutes';
+
+  @override
+  int build() =>
+      ref.watch(sharedPreferencesProvider).getInt(_key) ??
+      ParkingConfig.notificationLeadMinutes;
+
+  Future<void> set(int minutes) async {
+    state = minutes;
+    await ref.read(sharedPreferencesProvider).setInt(_key, minutes);
+  }
+}
+
+final notificationLeadProvider =
+    NotifierProvider<NotificationLeadController, int>(
+        NotificationLeadController.new);
 
 /// Prompts for OS notification permission once per app session (if the
 /// notifications setting is on). Watched from [MainScaffold] so it fires as

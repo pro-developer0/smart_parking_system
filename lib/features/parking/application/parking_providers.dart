@@ -6,12 +6,25 @@ import '../../../core/providers/settings_providers.dart';
 import '../../../core/services/notification_service.dart';
 import '../../auth/application/auth_providers.dart';
 import '../data/booking_repository.dart';
+import '../data/slot_repository.dart';
 import '../domain/booking.dart';
 import '../domain/parking_slot.dart';
+import '../domain/slot_condition.dart';
 
 /// All active bookings across the lot (server filtered by status == active).
 final activeBookingsProvider = StreamProvider<List<Booking>>((ref) {
   return ref.watch(bookingRepositoryProvider).watchActiveBookings();
+});
+
+/// Every slot the admin has changed (construction, closed...), by slot id.
+final slotConditionsProvider =
+    StreamProvider<Map<String, SlotConditionInfo>>((ref) {
+  return ref.watch(slotRepositoryProvider).watchConditions();
+});
+
+/// The admin's message shown at the top of the home screen, or null.
+final announcementProvider = StreamProvider<Announcement?>((ref) {
+  return ref.watch(slotRepositoryProvider).watchAnnouncement();
 });
 
 /// The signed-in user's full booking history (newest first).
@@ -60,6 +73,10 @@ final slotViewsProvider = Provider<List<SlotView>>((ref) {
   final uid = ref.watch(currentUserIdProvider);
   final now = ref.watch(tickerProvider).value ?? DateTime.now();
   final bookings = ref.watch(activeBookingsProvider).value ?? const [];
+  // If the slots collection can't be read (e.g. rules not deployed yet), we
+  // simply treat every slot as open instead of breaking the home screen.
+  final conditions =
+      ref.watch(slotConditionsProvider).value ?? const <String, SlotConditionInfo>{};
 
   // Map slotId -> the booking holding it, whether it has started yet or not.
   // A slot booked for later today is unavailable to everyone else right
@@ -73,15 +90,26 @@ final slotViewsProvider = Provider<List<SlotView>>((ref) {
 
   return ParkingConfig.slots.map((slot) {
     final booking = occupied[slot.id];
+    final info = conditions[slot.id];
+    final blocked = info != null && info.isActive(now);
     final SlotStatus status;
-    if (booking == null) {
-      status = SlotStatus.available;
-    } else if (booking.userId == uid) {
+    if (booking != null && booking.userId == uid) {
+      // The user's own booking always shows as "mine", even if the admin
+      // closed the slot afterwards, so they can still open My booking.
       status = SlotStatus.mine;
-    } else {
+    } else if (blocked) {
+      status = SlotStatus.blocked;
+    } else if (booking != null) {
       status = SlotStatus.occupied;
+    } else {
+      status = SlotStatus.available;
     }
-    return SlotView(slot: slot, status: status, booking: booking);
+    return SlotView(
+      slot: slot,
+      status: status,
+      booking: booking,
+      condition: blocked ? info : null,
+    );
   }).toList();
 });
 
@@ -116,56 +144,63 @@ final bookingJanitorProvider = Provider<void>((ref) {
 
 /// Side-effecting provider that keeps the "booking ends soon" local
 /// notification in sync with the user's live booking. Kept alive by being
-/// watched in [MainScaffold]. Only reacts when the booking identity or the
-/// notifications toggle actually changes, not on every ticker tick.
+/// watched in [MainScaffold]. Only reacts when the booking (or its end
+/// time), the notifications toggle, or the chosen lead time actually
+/// changes, not on every ticker tick.
 final bookingNotificationProvider = Provider<void>((ref) {
-  String? scheduledForBookingId;
+  // Identifies what is currently scheduled: booking + end time + lead time.
+  String? scheduledKey;
 
   void sync() {
     final enabled = ref.read(notificationsProvider);
     final booking = ref.read(myLiveBookingProvider);
+    final lead = ref.read(notificationLeadProvider);
 
     if (!enabled || booking == null) {
-      if (scheduledForBookingId != null) {
+      if (scheduledKey != null) {
         NotificationService.instance.cancelBookingNotification();
-        scheduledForBookingId = null;
+        scheduledKey = null;
       }
       return;
     }
 
-    if (scheduledForBookingId == booking.id) return;
+    final key = '${booking.id}|${booking.endTime}|$lead';
+    if (scheduledKey == key) return;
 
-    final notifyAt = booking.endTime.subtract(
-      const Duration(minutes: ParkingConfig.notificationLeadMinutes),
-    );
+    final notifyAt = booking.endTime.subtract(Duration(minutes: lead));
     if (notifyAt.isAfter(DateTime.now())) {
       NotificationService.instance.scheduleBookingNotification(
         slotId: booking.slotId,
         fireAt: notifyAt,
+        minutesLeft: lead,
       );
-      scheduledForBookingId = booking.id;
-    } else if (scheduledForBookingId != null) {
+      scheduledKey = key;
+    } else if (scheduledKey != null) {
       NotificationService.instance.cancelBookingNotification();
-      scheduledForBookingId = null;
+      scheduledKey = null;
     }
   }
 
   ref.listen<Booking?>(
     myLiveBookingProvider,
-    (_, __) => sync(),
+    (_, _) => sync(),
     fireImmediately: true,
   );
-  ref.listen<bool>(notificationsProvider, (_, __) => sync());
+  ref.listen<bool>(notificationsProvider, (_, _) => sync());
+  ref.listen<int>(notificationLeadProvider, (_, _) => sync());
 });
 
-/// Quick counts for the header summary chips.
-final slotCountsProvider = Provider<({int available, int occupied, int total})>(
+/// Quick counts for the header summary chips and the admin dashboard.
+final slotCountsProvider =
+    Provider<({int available, int occupied, int blocked, int total})>(
   (ref) {
     final views = ref.watch(slotViewsProvider);
     final available = views.where((v) => v.isAvailable).length;
+    final blocked = views.where((v) => v.isBlocked).length;
     return (
       available: available,
-      occupied: views.length - available,
+      occupied: views.length - available - blocked,
+      blocked: blocked,
       total: views.length,
     );
   },

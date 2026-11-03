@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// ParkEase security rules.
+// Paste this whole file into: Firebase console → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    // An admin is a user whose users/{uid} document has role == "admin".
+    // Set it by hand in the Firebase console; the app can never set it.
+    function isAdmin() {
+      return signedIn() && exists(userDoc())
+          && get(userDoc()).data.get('role', 'user') == 'admin';
+    }
+
+    function isSuspended() {
+      return exists(userDoc())
+          && get(userDoc()).data.get('suspended', false) == true;
+    }
+
+    // ── User profiles ────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Sign-up: a new account always starts as a normal, active user.
+      allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.get('role', 'user') == 'user'
+          && request.resource.data.get('suspended', false) == false;
+
+      // Users edit their own profile but can NOT change role/suspended.
+      // Admins can change anything (e.g. suspend a user).
+      allow update: if isAdmin()
+          || (signedIn() && request.auth.uid == uid
+              && !request.resource.data.diff(resource.data)
+                    .affectedKeys().hasAny(['role', 'suspended']));
+
+      allow delete: if false;
+    }
+
+    // ── Profile pictures (small base64 images) ───────────────────────
+    match /user_photos/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+          && (request.auth.uid == uid || isAdmin())
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 1000000;
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ── Bookings ─────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      // Everyone signed in can read bookings (needed to colour the slots).
+      allow read: if signedIn();
+
+      // Users book only for themselves, and not while suspended.
+      allow create: if signedIn()
+          && request.resource.data.userId == request.auth.uid
+          && !isSuspended();
+
+      // Users can extend / end / cancel their own booking.
+      // Admins can end or cancel anyone's booking.
+      allow update: if isAdmin()
+          || (signedIn() && resource.data.userId == request.auth.uid
+              && request.resource.data.userId == resource.data.userId);
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Booking locks ────────────────────────────────────────────────
+    // Make sure that when two people confirm the same slot at the same
+    // moment, only one booking goes through. Docs are "slot_<slotId>" and
+    // "user_<uid>". A user may only stamp a lock with their own uid, and
+    // only touch their own user_ lock.
+    match /bookingLocks/{lockId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+          || (signedIn()
+              && request.resource.data.by == request.auth.uid
+              && (!lockId.matches('user_.*')
+                  || lockId == 'user_' + request.auth.uid));
+      allow delete: if false;
+    }
+
+    // ── Slot settings from the admin (construction, closed...) ───────
+    match /slots/{slotId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── App-wide settings (the notice / announcement) ────────────────
+    match /app_config/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -6,6 +6,8 @@ import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/constants/parking_config.dart';
+import '../../../core/providers/settings_providers.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/primary_button.dart';
@@ -53,11 +55,20 @@ class _SlotBookingScreenState extends ConsumerState<SlotBookingScreen> {
   }
 
   Future<void> _confirm() async {
+    final start = _startTime;
+    final duration = Duration(minutes: _minutes);
     final ok = await ref.read(bookingControllerProvider.notifier).book(
           slotId: widget.slotId,
-          startTime: _startTime,
-          duration: Duration(minutes: _minutes),
+          startTime: start,
+          duration: duration,
         );
+    if (ok && ref.read(notificationsProvider)) {
+      NotificationService.instance.showBookingConfirmation(
+        slotId: widget.slotId,
+        start: start,
+        end: start.add(duration),
+      );
+    }
     if (!mounted) return;
     if (ok) {
       AppSnackbar.success(context, 'Slot ${widget.slotId} booked!');
@@ -81,7 +92,8 @@ class _SlotBookingScreenState extends ConsumerState<SlotBookingScreen> {
             status: SlotStatus.available,
           ),
         );
-    final taken = view.status == SlotStatus.occupied;
+    final blocked = view.status == SlotStatus.blocked;
+    final taken = view.status == SlotStatus.occupied || blocked;
 
     final start = _startTime;
     final end = start.add(Duration(minutes: _minutes));
@@ -96,7 +108,14 @@ class _SlotBookingScreenState extends ConsumerState<SlotBookingScreen> {
             children: [
               _SlotHero(slotId: widget.slotId),
               const SizedBox(height: 24),
-              if (taken)
+              if (blocked)
+                _Banner(
+                  color: view.condition?.condition.color ?? AppColors.closed,
+                  icon: view.condition?.condition.icon ?? Icons.block_rounded,
+                  text: '${view.condition?.condition.label ?? 'Closed'}: '
+                      '${view.condition?.message ?? 'This slot was closed by the admin.'}',
+                )
+              else if (taken)
                 _Banner(
                   color: AppColors.occupied,
                   icon: Icons.block_rounded,
@@ -370,11 +389,7 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.semantic.border),
-      ),
+      decoration: context.cardDecoration(),
       child: Column(
         children: [
           _row(
@@ -386,7 +401,7 @@ class _SummaryCard extends StatelessWidget {
                 : '${Formatters.time(start)} (now)',
           ),
           const Divider(height: 22),
-          _row(context, Icons.stop_rounded, 'Ends', Formatters.time(end)),
+          _row(context, Icons.stop_rounded, 'Ends', Formatters.smartTime(end)),
           const Divider(height: 22),
           _row(context, Icons.timelapse_rounded, 'Duration',
               Formatters.durationLabel(Duration(minutes: minutes))),

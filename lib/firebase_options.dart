@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -30,10 +27,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.macOS:
         return ios;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -53,13 +47,31 @@ class DefaultFirebaseOptions {
     projectId: 'smart-parking-system-d0f01',
     storageBucket: 'smart-parking-system-d0f01.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAb9Zi1iCYg_U-pXNm-RlyVZPl0JSf0esg',
-    appId: '1:58547240293:ios:3e1a86ca966dd0394bf58c',
+    appId: '1:58547240293:ios:4fdd70aa7dad37f14bf58c',
     messagingSenderId: '58547240293',
     projectId: 'smart-parking-system-d0f01',
     storageBucket: 'smart-parking-system-d0f01.firebasestorage.app',
     iosBundleId: 'com.example.smartParkingSystem',
+  );
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBz3CazzSuy3X4EnilRhvtcWLegfZYHYYQ',
+    appId: '1:58547240293:web:3a44c1215635ba864bf58c',
+    messagingSenderId: '58547240293',
+    projectId: 'smart-parking-system-d0f01',
+    authDomain: 'smart-parking-system-d0f01.firebaseapp.com',
+    storageBucket: 'smart-parking-system-d0f01.firebasestorage.app',
+    measurementId: 'G-5BF2VK2EV4',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyBz3CazzSuy3X4EnilRhvtcWLegfZYHYYQ',
+    appId: '1:58547240293:web:115c69c68ff423364bf58c',
+    messagingSenderId: '58547240293',
+    projectId: 'smart-parking-system-d0f01',
+    authDomain: 'smart-parking-system-d0f01.firebaseapp.com',
+    storageBucket: 'smart-parking-system-d0f01.firebasestorage.app',
+    measurementId: 'G-3BKYGPJM6L',
   );
 }

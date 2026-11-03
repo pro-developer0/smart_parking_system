@@ -9,6 +9,7 @@ import '../../../core/constants/parking_config.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../application/booking_controller.dart';
 import '../application/parking_providers.dart';
@@ -36,24 +37,13 @@ class _MyBookingScreenState extends ConsumerState<MyBookingScreen> {
   }
 
   Future<void> _endEarly(Booking booking) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave now?'),
-        content: Text(
-            'This frees slot ${booking.slotId} immediately for others.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.occupied),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Leave now')),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Leave now?',
+      message: 'This frees slot ${booking.slotId} immediately for others.',
+      action: 'Leave now',
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     final ok = await ref
         .read(bookingControllerProvider.notifier)
         .endEarly(booking.id);
@@ -65,23 +55,14 @@ class _MyBookingScreenState extends ConsumerState<MyBookingScreen> {
   }
 
   Future<void> _cancelUpcoming(Booking booking) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel booking?'),
-        content: Text('This frees slot ${booking.slotId} for others.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Keep it')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.occupied),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Cancel booking')),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Cancel booking?',
+      message: 'This frees slot ${booking.slotId} for others.',
+      action: 'Cancel booking',
+      cancel: 'Keep it',
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     final ok =
         await ref.read(bookingControllerProvider.notifier).cancel(booking.id);
     if (!mounted) return;
@@ -149,21 +130,7 @@ class _UpcomingView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primaryDark.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Text(
-                'Slot ${booking.slotId} · ${ParkingConfig.lotName}',
-                style: const TextStyle(
-                    color: AppColors.primaryDark, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
+          _SlotPill(slotId: booking.slotId, color: AppColors.primaryDark),
           const SizedBox(height: 28),
           Center(
             child: Container(
@@ -194,25 +161,7 @@ class _UpcomingView extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 28),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniInfo(
-                  label: 'Starts at',
-                  value: Formatters.time(booking.startTime),
-                  icon: Icons.play_arrow_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MiniInfo(
-                  label: 'Ends at',
-                  value: Formatters.time(booking.endTime),
-                  icon: Icons.flag_rounded,
-                ),
-              ),
-            ],
-          ),
+          _TimesRow(booking: booking, startLabel: 'Starts at'),
           const SizedBox(height: 12),
           Text(
             'This slot will be reserved for you starting '
@@ -256,21 +205,7 @@ class _ActiveView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Text(
-                'Slot ${booking.slotId} · ${ParkingConfig.lotName}',
-                style: const TextStyle(
-                    color: AppColors.primary, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
+          _SlotPill(slotId: booking.slotId, color: AppColors.primary),
           const SizedBox(height: 28),
           Center(
             child: CountdownRing(
@@ -279,32 +214,18 @@ class _ActiveView extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 28),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniInfo(
-                  label: 'Started',
-                  value: Formatters.time(booking.startTime),
-                  icon: Icons.play_arrow_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MiniInfo(
-                  label: 'Ends at',
-                  value: Formatters.time(booking.endTime),
-                  icon: Icons.flag_rounded,
-                ),
-              ),
-            ],
-          ),
+          _TimesRow(booking: booking, startLabel: 'Started'),
           const SizedBox(height: 24),
           Text('Extend time',
               style: context.text.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(
-            'You can only extend while your booking is still active.',
+            booking.extensionLeft == Duration.zero
+                ? 'This booking has reached its extension limit.'
+                : 'You can extend by up to '
+                    '${Formatters.durationLabel(booking.extensionLeft)} more '
+                    '(half of your booked time, at least 1h).',
             style: TextStyle(color: context.semantic.muted, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -313,8 +234,10 @@ class _ActiveView extends ConsumerWidget {
               for (final m in ParkingConfig.extensionOptionsMinutes) ...[
                 Expanded(
                   child: OutlinedButton(
-                    onPressed:
-                        loading ? null : () => onExtend(booking, m),
+                    onPressed: loading ||
+                            Duration(minutes: m) > booking.extensionLeft
+                        ? null
+                        : () => onExtend(booking, m),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: BorderSide(color: context.semantic.border),
@@ -344,6 +267,59 @@ class _ActiveView extends ConsumerWidget {
   }
 }
 
+class _SlotPill extends StatelessWidget {
+  const _SlotPill({required this.slotId, required this.color});
+  final String slotId;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Text(
+          'Slot $slotId · ${ParkingConfig.lotName}',
+          style: TextStyle(color: color, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Starts/Started" and "Ends at" side by side.
+class _TimesRow extends StatelessWidget {
+  const _TimesRow({required this.booking, required this.startLabel});
+  final Booking booking;
+  final String startLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniInfo(
+            label: startLabel,
+            value: Formatters.time(booking.startTime),
+            icon: Icons.play_arrow_rounded,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _MiniInfo(
+            label: 'Ends at',
+            value: Formatters.smartTime(booking.endTime),
+            icon: Icons.flag_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MiniInfo extends StatelessWidget {
   const _MiniInfo({
     required this.label,
@@ -358,11 +334,7 @@ class _MiniInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.semantic.border),
-      ),
+      decoration: context.cardDecoration(14),
       child: Row(
         children: [
           Icon(icon, size: 20, color: context.semantic.muted),

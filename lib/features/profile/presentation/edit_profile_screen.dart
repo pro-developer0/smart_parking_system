@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/auth_repository.dart';
+import 'widgets/profile_photo_picker.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -49,7 +51,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       await ref.read(authRepositoryProvider).updateProfile(
             uid: uid,
             name: _name.text,
-            vehicleNumber: _vehicle.text,
+            vehicleNumber: _vehicle.text.trim().toUpperCase(),
             phone: _phone.text,
           );
       if (!mounted) return;
@@ -64,6 +66,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(userProfileProvider).value;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Edit profile')),
       body: SafeArea(
@@ -74,6 +78,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: EditableAvatar(
+                    uid: profile?.uid,
+                    initials: profile?.initials ?? '?',
+                    radius: 48,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Center(child: ChangePhotoHint()),
+                const SizedBox(height: 24),
                 AppTextField(
                   controller: _name,
                   label: 'Full name',
@@ -86,18 +100,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(height: 18),
                 AppTextField(
                   controller: _vehicle,
-                  label: 'Vehicle number',
+                  label: 'Vehicle number *',
                   hint: 'ABC-123',
                   icon: Icons.directions_car_outlined,
                   textCapitalization: TextCapitalization.characters,
+                  validator: Validators.vehicleNumber,
                 ),
                 const SizedBox(height: 18),
                 AppTextField(
                   controller: _phone,
-                  label: 'Phone',
+                  label: 'Phone number *',
                   hint: '+92 300 0000000',
                   icon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
+                  validator: Validators.phone,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '* Required to book a parking slot.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 PrimaryButton(

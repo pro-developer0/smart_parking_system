@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/constants/parking_config.dart';
 import '../../../core/providers/settings_providers.dart';
+import '../../auth/application/auth_providers.dart';
+import 'widgets/about_app_section.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -11,6 +15,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final notifications = ref.watch(notificationsProvider);
+    final lead = ref.watch(notificationLeadProvider);
+    final isAdmin = ref.watch(userProfileProvider).value?.isAdmin ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -25,8 +31,9 @@ class SettingsScreen extends ConsumerWidget {
                   label: 'System default',
                   icon: Icons.brightness_auto_rounded,
                   selected: themeMode == ThemeMode.system,
-                  onTap: () =>
-                      ref.read(themeModeProvider.notifier).set(ThemeMode.system),
+                  onTap: () => ref
+                      .read(themeModeProvider.notifier)
+                      .set(ThemeMode.system),
                 ),
                 const Divider(height: 1),
                 _ThemeOption(
@@ -48,33 +55,81 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _SectionLabel('Notifications'),
-          _Card(
-            child: SwitchListTile(
-              title: const Text('Notifications'),
-              subtitle: Text('Notify me 1 minute before my time runs out',
-                  style: TextStyle(color: context.semantic.muted)),
-              value: notifications,
-              onChanged: (v) =>
-                  ref.read(notificationsProvider.notifier).set(v),
+          // Booking reminders only matter to drivers, not admins.
+          if (!isAdmin) ...[
+            _SectionLabel('Notifications'),
+            _Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Notifications'),
+                    subtitle: Text(
+                      'Notify me $lead minute${lead == 1 ? '' : 's'} '
+                      'before my time runs out',
+                      style: TextStyle(color: context.semantic.muted),
+                    ),
+                    value: notifications,
+                    onChanged: (v) =>
+                        ref.read(notificationsProvider.notifier).set(v),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Remind me before my booking ends',
+                          style: TextStyle(
+                            color: notifications
+                                ? null
+                                : context.semantic.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final m
+                                in ParkingConfig.notificationLeadOptionsMinutes)
+                              ChoiceChip(
+                                label: Text('$m min'),
+                                selected: lead == m,
+                                onSelected: notifications
+                                    ? (_) => ref
+                                          .read(
+                                            notificationLeadProvider.notifier,
+                                          )
+                                          .set(m)
+                                    : null,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
+          ],
           _SectionLabel('About'),
           _Card(
             child: Column(
-              children: const [
+              children: [
                 ListTile(
-                  leading: Icon(Icons.info_outline_rounded),
-                  title: Text('Version'),
-                  trailing: Text('1.0.0'),
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: const Text('Version'),
+                  // Read from the installed app (pubspec `version:`), so it
+                  // is always correct after a release.
+                  trailing: Text(
+                    ref.watch(appVersionProvider).value ?? '…',
+                  ),
                 ),
-                Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.local_parking_rounded),
-                  title: Text('ParkEase'),
-                  subtitle: Text('Smart parking, minus the circling.'),
-                ),
+                const Divider(height: 1),
+                AboutAppSection(isAdmin: isAdmin),
               ],
             ),
           ),
@@ -83,6 +138,14 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 }
+
+/// The installed app's version, e.g. "1.0.0 (1)".
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.buildNumber.isEmpty
+      ? info.version
+      : '${info.version} (${info.buildNumber})';
+});
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
@@ -111,12 +174,14 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // A Material (not a decorated Container) so the ListTiles inside can
+    // paint their ink splashes on it instead of being hidden behind it.
+    return Material(
+      color: context.semantic.surface,
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.semantic.border),
+        side: BorderSide(color: context.semantic.border),
       ),
       child: child,
     );

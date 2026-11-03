@@ -6,12 +6,16 @@ import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/constants/parking_config.dart';
+import '../../../core/widgets/cctv_widgets.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/stat_card.dart';
 import '../../auth/application/auth_providers.dart';
+import '../../profile/presentation/widgets/user_avatar.dart';
 import '../application/parking_providers.dart';
 import '../domain/parking_slot.dart';
+import '../domain/slot_condition.dart';
 import 'widgets/legend_bar.dart';
 import 'widgets/slot_tile.dart';
 
@@ -21,6 +25,11 @@ class ParkingHomeScreen extends ConsumerWidget {
   void _onSlotTap(BuildContext context, WidgetRef ref, SlotView view) {
     switch (view.status) {
       case SlotStatus.available:
+        final profile = ref.read(userProfileProvider).value;
+        if (profile != null && !profile.hasBookingDetails) {
+          _showDetailsRequired(context);
+          return;
+        }
         context.pushNamed(
           Routes.booking,
           pathParameters: {'slotId': view.slot.id},
@@ -33,11 +42,135 @@ class ParkingHomeScreen extends ConsumerWidget {
             ? 'Slot ${view.slot.label} is occupied.'
             : booking.startTime.isAfter(DateTime.now())
                 ? 'Slot ${view.slot.label} is reserved from '
-                    '${Formatters.time(booking.startTime)} to ${Formatters.time(booking.endTime)}.'
-                : 'Slot ${view.slot.label} is occupied until ${Formatters.time(booking.endTime)}.';
+                    '${Formatters.time(booking.startTime)} to ${Formatters.smartTime(booking.endTime)}.'
+                : 'Slot ${view.slot.label} is occupied until ${Formatters.smartTime(booking.endTime)}.';
         AppSnackbar.info(context, message);
+      case SlotStatus.blocked:
+        _showBlockedSlot(context, view);
     }
   }
+
+  /// Asks the user to add phone + vehicle number before booking.
+  static void _showDetailsRequired(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 64,
+                width: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.construction.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.badge_outlined,
+                    color: AppColors.construction, size: 32),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Complete your profile',
+                style: ctx.text.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Add your phone number and vehicle number before booking '
+                'a slot. This lets the parking admins identify your vehicle '
+                'and contact you if needed.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: ctx.semantic.muted),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    context.push(Routes.editProfile);
+                  },
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Add details now'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Explains why a slot can't be booked (construction, closed...).
+  void _showBlockedSlot(BuildContext context, SlotView view) {
+    final info = view.condition;
+    final condition = info?.condition ?? SlotCondition.closed;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 64,
+                width: 64,
+                decoration: BoxDecoration(
+                  color: condition.color.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(condition.icon, color: condition.color, size: 34),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Slot ${view.slot.label} · ${condition.label}',
+                style: ctx.text.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                info?.message ?? condition.userMessage,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: ctx.semantic.muted),
+              ),
+              if (info?.until != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Opens again: ${Formatters.dateTime(info!.until!)}',
+                  style: TextStyle(
+                    color: condition.color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Choose another slot'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Morning: 5:00–11:59, afternoon: 12:00–16:59, evening: 17:00–4:59.
+  static String _greeting(int h) => h >= 5 && h < 12
+      ? 'Good morning'
+      : h >= 12 && h < 17
+          ? 'Good afternoon'
+          : 'Good evening';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,6 +182,7 @@ class ParkingHomeScreen extends ConsumerWidget {
     final myBooking = ref.watch(myBookingProvider);
     final profile = ref.watch(userProfileProvider).value;
     final bookingsAsync = ref.watch(activeBookingsProvider);
+    final announcement = ref.watch(announcementProvider).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -56,7 +190,9 @@ class ParkingHomeScreen extends ConsumerWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Hi, ${profile?.name.split(' ').first ?? 'there'} 👋',
+            Text(
+                '${_greeting(DateTime.now().hour)}, '
+                '${profile?.name.split(' ').first ?? 'there'} 👋',
                 style: context.text.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w800)),
             Text(
@@ -69,6 +205,7 @@ class ParkingHomeScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          const CctvAppBarButton(),
           IconButton(
             onPressed: () => context.push(Routes.settings),
             icon: const Icon(Icons.settings_outlined),
@@ -77,14 +214,10 @@ class ParkingHomeScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16, left: 4),
             child: GestureDetector(
               onTap: () => context.go(Routes.profile),
-              child: CircleAvatar(
+              child: UserAvatar(
+                uid: profile?.uid,
+                initials: profile?.initials ?? '?',
                 radius: 18,
-                backgroundColor: AppColors.primary,
-                child: Text(
-                  profile?.initials ?? '?',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700),
-                ),
               ),
             ),
           ),
@@ -101,7 +234,19 @@ class ParkingHomeScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
+              if (announcement != null) ...[
+                _AnnouncementBanner(message: announcement.message),
+                const SizedBox(height: 16),
+              ],
+              if (profile != null && !profile.hasBookingDetails) ...[
+                _MissingDetailsBanner(
+                  onTap: () => context.push(Routes.editProfile),
+                ),
+                const SizedBox(height: 16),
+              ],
               _SummaryRow(available: counts.available, total: counts.total),
+              const SizedBox(height: 12),
+              const CctvStatusCard(),
               const SizedBox(height: 16),
               if (myBooking != null) ...[
                 _ActiveBookingCard(
@@ -115,20 +260,113 @@ class ParkingHomeScreen extends ConsumerWidget {
               ],
               const _EntranceMarker(),
               const SizedBox(height: 16),
-              _SlotSection(
-                section: 'A',
-                onTap: (v) => _onSlotTap(context, ref, v),
-              ),
-              const SizedBox(height: 20),
-              _SlotSection(
-                section: 'B',
-                onTap: (v) => _onSlotTap(context, ref, v),
-              ),
-              const SizedBox(height: 24),
+              for (final section in ParkingConfig.sections) ...[
+                _SlotSection(
+                  section: section,
+                  onTap: (v) => _onSlotTap(context, ref, v),
+                ),
+                const SizedBox(height: 20),
+              ],
+              const SizedBox(height: 4),
               const LegendBar(),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Shown until the user has added both phone and vehicle number.
+class _MissingDetailsBanner extends StatelessWidget {
+  const _MissingDetailsBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.occupied.withValues(alpha: 0.10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.occupied.withValues(alpha: 0.45)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Icon(Icons.error_outline_rounded,
+                  color: AppColors.occupied, size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Add phone & vehicle number',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.occupied,
+                        fontSize: 13,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text("You can't book a slot until both are added. "
+                        'Tap to update your profile.'),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.occupied),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Message from the admin, shown above everything else on the home screen.
+class _AnnouncementBanner extends StatelessWidget {
+  const _AnnouncementBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.construction.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.construction.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.campaign_rounded,
+              color: AppColors.construction, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Notice from parking office',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.construction,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(message),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -144,73 +382,23 @@ class _SummaryRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            label: 'Available now',
-            value: '$available',
+          child: StatCard(
+            label: 'Available  ',
+            value: available,
             color: AppColors.available,
             icon: Icons.check_circle_outline_rounded,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             label: 'Total spots',
-            value: '$total',
+            value: total,
             color: AppColors.primary,
             icon: Icons.local_parking_rounded,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.semantic.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.semantic.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 42,
-            width: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value,
-                  style: context.text.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12, color: context.semantic.muted)),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
@@ -238,7 +426,7 @@ class _ActiveBookingCard extends ConsumerWidget {
     final label = upcoming ? 'Upcoming booking' : 'Your active booking';
     final detail = upcoming
         ? '${Formatters.remaining(untilStart)} until start · starts ${Formatters.time(startTime)}'
-        : '${Formatters.remaining(remaining)} left · ends ${Formatters.time(endTime)}';
+        : '${Formatters.remaining(remaining)} left · ends ${Formatters.smartTime(endTime)}';
 
     return GestureDetector(
       onTap: onTap,
@@ -344,7 +532,7 @@ class _SlotSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Section $section',
+        Text(ParkingConfig.sectionName(section),
             style: context.text.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
