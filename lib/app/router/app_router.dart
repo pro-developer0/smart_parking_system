@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/admin/presentation/admin_screen.dart';
+import '../../screens/07_admin/admin_screen.dart';
 import '../../features/auth/application/auth_providers.dart';
-import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/signup_screen.dart';
-import '../../features/auth/presentation/splash_screen.dart';
-import '../../features/parking/presentation/booking_history_screen.dart';
-import '../../features/parking/presentation/my_booking_screen.dart';
-import '../../features/parking/presentation/parking_home_screen.dart';
-import '../../features/parking/presentation/slot_booking_screen.dart';
-import '../../features/profile/presentation/contact_screen.dart';
-import '../../features/profile/presentation/edit_profile_screen.dart';
-import '../../features/profile/presentation/profile_screen.dart';
-import '../../features/settings/presentation/settings_screen.dart';
-import '../shell/main_scaffold.dart';
+import '../../screens/02_auth/login_screen.dart';
+import '../../screens/02_auth/signup_screen.dart';
+import '../../screens/01_splash/splash_screen.dart';
+import '../../screens/04_parking/booking_history_screen.dart';
+import '../../screens/04_parking/my_booking_screen.dart';
+import '../../screens/04_parking/parking_home_screen.dart';
+import '../../screens/04_parking/slot_booking_screen.dart';
+import '../../screens/05_profile/contact_screen.dart';
+import '../../screens/05_profile/edit_profile_screen.dart';
+import '../../screens/05_profile/profile_screen.dart';
+import '../../screens/06_settings/settings_screen.dart';
+import '../../screens/03_main_shell/main_scaffold.dart';
 import 'route_names.dart';
 
 /// Keeps the splash screen visible for at least this long, even if auth
